@@ -266,30 +266,28 @@ export default class AuthController {
       });
     }
 
-    const new_access_token = jwt.sign({ id: user.id, name: user.name, email: user.email }, process.env.JWT_ACCESS_TOKEN, { expiresIn: '15m' });
-    const new_refresh_token = Date.now() < session.expires_in ? session.refresh_token : uuidv4();
+    if (Date.now() > session.expires_in) {
+      await session.deleteOne();
 
+      return res.status(401).json({
+        message: 'Session has expired',
+      });
+    }
+
+    const new_access_token = jwt.sign({ id: user.id, name: user.name, email: user.email }, process.env.JWT_ACCESS_TOKEN, { expiresIn: '15m' });
     const millisecondsInMonth = 1000 * 60 * 60 * 24 * 30;
     const expires_in = new Date(Date.now() + millisecondsInMonth);
 
     await session.updateOne({
       access_token: new_access_token,
-      refreshTokens: new_refresh_token,
       created_at: new Date(),
       expires_in,
-    });
-
-    res.cookie('refresh_token', new_refresh_token, {
-      path: '/auth',
-      maxAge: millisecondsInMonth,
-      httpOnly: true,
-      secure: true,
     });
 
     return res.json({
       message: 'Refresh tokens',
       access_token: new_access_token,
-      refresh_token: new_refresh_token,
+      refresh_token,
     });
   }
 }
